@@ -476,6 +476,36 @@ fn wal_payload_limit_resolves_option_zero_and_default() {
 }
 
 #[test]
+fn load_threads_resolve_option_and_reject_zero() {
+    let resolve = |load_threads| {
+        resolve_load_threads(&OpenOptions {
+            load_threads,
+            ..OpenOptions::default()
+        })
+    };
+    assert_eq!(resolve(Some(3)).unwrap().get(), 3);
+    let err = resolve(Some(0)).unwrap_err();
+    assert!(matches!(err, Error::Semantic(_)), "{err}");
+}
+
+#[test]
+fn load_threads_zero_fails_open_before_the_store_is_created() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("db");
+    let err = crate::Database::open_with(
+        path.to_str().unwrap(),
+        OpenOptions {
+            load_threads: Some(0),
+            ..OpenOptions::default()
+        },
+    )
+    .map(|_| ())
+    .unwrap_err();
+    assert!(matches!(err, Error::Semantic(_)), "{err}");
+    assert!(!path.exists(), "a failed open left the store behind");
+}
+
+#[test]
 fn expression_memo_budget_resolution_defaults_and_fails_loud() {
     let unset = || Err(std::env::VarError::NotPresent);
     assert_eq!(expression_memo_budget_from_setting(unset()).unwrap(), 16);
